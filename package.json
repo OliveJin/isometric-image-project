@@ -1,0 +1,24 @@
+{
+  "name": "the-moment",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OliveJin/isometric-image-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/OliveJin/isometric-image-project/issues"
+  },
+  "homepage": "https://github.com/OliveJin/isometric-image-project#readme",
+  "dependencies": {
+    "three": "^0.184.0"
+  }
+}
