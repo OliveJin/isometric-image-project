@@ -1,11 +1,30 @@
 {
   "name": "the-moment",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "360° memory space experience",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node server/server.js",
+    "dev:all": "concurrently \"npm run dev\" \"npm run server\""
   },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "fs-extra": "^11.1.1",
+    "multer": "^1.4.5-lts.1",
+    "three": "^0.128.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "esbuild": "^0.28.0",
+    "vite": "^4.5.0"
+  },
+  "main": "vite.config.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/OliveJin/isometric-image-project.git"
@@ -13,12 +32,8 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/OliveJin/isometric-image-project/issues"
   },
-  "homepage": "https://github.com/OliveJin/isometric-image-project#readme",
-  "dependencies": {
-    "three": "^0.184.0"
-  }
+  "homepage": "https://github.com/OliveJin/isometric-image-project#readme"
 }
