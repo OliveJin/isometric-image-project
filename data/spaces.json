@@ -10,5 +10,11 @@
     "panorama": "/assets/panoramas/room2.jpg",
     "audio": "",
     "hotspots": []
+  },
+  {
+    "id": "opencv",
+    "panorama": "/assets/panoramas/opencv.jpg",
+    "audio": "",
+    "hotspots": []
   }
 ]
