@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: themoment
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+ark:
+  api-key: ark-b533a48c-cb95-4410-8c56-b5795edcd706-a3750
+  seedream-model: doubao-seedream-5-0-260128

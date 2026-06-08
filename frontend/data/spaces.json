@@ -1,0 +1,20 @@
+[
+  {
+    "id": "room1",
+    "panorama": "/assets/panoramas/room1.jpg",
+    "audio": "",
+    "hotspots": []
+  },
+  {
+    "id": "room2",
+    "panorama": "/assets/panoramas/room2.jpg",
+    "audio": "",
+    "hotspots": []
+  },
+  {
+    "id": "opencv",
+    "panorama": "/assets/panoramas/opencv.jpg",
+    "audio": "",
+    "hotspots": []
+  }
+]

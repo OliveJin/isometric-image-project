@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>The Moment</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: radial-gradient(circle at top, #5c5b80 0%, #453f64 24%, #2d2640 55%, #1b1727 100%);
+      color: #eef0ff;
+    }
+
+    #app {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #ui {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .ui-panel {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    #introOverlay {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 26px;
+      width: 100%;
+      height: 100%;
+      pointer-events: auto;
+      text-align: center;
+    }
+
+    #introOverlay.hidden {
+      display: none;
+    }
+
+    #introOverlay h1 {
+      margin: 0;
+      font-size: clamp(3rem, 7vw, 5.4rem);
+      letter-spacing: 0.22em;
+      line-height: 0.98;
+      color: #eef0ff;
+      text-shadow: 0 18px 40px rgba(0,0,0,0.32);
+    }
+
+    #introOrb {
+      width: min(220px, 50vw);
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      background: radial-gradient(circle at 25% 25%, rgba(255,255,255,0.95), rgba(202,198,230,0.94) 38%, rgba(128,120,171,0.58) 58%, rgba(24,22,39,0.2));
+      box-shadow: 0 40px 100px rgba(78,74,110,0.35);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #introOrb::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 55% 45%, rgba(255,255,255,0.24), transparent 38%);
+      opacity: 0.95;
+    }
+
+    #enterMomentBtn {
+      position: relative;
+      border: 1px solid rgba(255,255,255,0.55);
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      color: #f4f5ff;
+      padding: 14px 28px;
+      border-radius: 999px;
+      font-size: 1.05rem;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+      box-shadow: 0 10px 40px rgba(22,18,44,0.22);
+    }
+
+    #enterMomentBtn:hover {
+      transform: translateY(-2px);
+      background: rgba(255,255,255,0.15);
+      box-shadow: 0 16px 48px rgba(22,18,44,0.28);
+    }
+
+    #controls {
+      position: absolute;
+      inset: auto 0 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      pointer-events: auto;
+    }
+
+    #backBtn {
+      border: 1px solid rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.08);
+      color: #eef0ff;
+      padding: 12px 18px;
+      border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(8px);
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    #backBtn:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.14);
+    }
+
+    #selector {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: rgba(16,14,30,0.42);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      backdrop-filter: blur(12px);
+      pointer-events: auto;
+      opacity: 0;
+      transform: translateY(40px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    #selector.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .selector-button {
+      min-width: 100px;
+      padding: 12px 14px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      color: #eef0ff;
+      cursor: pointer;
+      font-size: 0.95rem;
+      text-transform: capitalize;
+      transition: background 0.2s ease;
+    }
+
+    .selector-button:hover {
+      background: rgba(255,255,255,0.16);
+    }
+
+    .selector-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .selector-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .selector-icon {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      color: #eef0ff;
+      cursor: pointer;
+      font-size: 0.95rem;
+      display: grid;
+      place-items: center;
+      transition: background 0.2s ease;
+    }
+
+    .selector-icon:hover {
+      background: rgba(255,255,255,0.18);
+    }
+
+    .selector-delete {
+      color: #ffdcdc;
+    }
+
+    #confirmOverlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    #confirmOverlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #confirmBox {
+      min-width: min(320px, 90%);
+      padding: 26px 26px 18px;
+      border-radius: 24px;
+      background: rgba(15, 14, 29, 0.94);
+      border: 1px solid rgba(255,255,255,0.14);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 30px 90px rgba(11, 11, 28, 0.45);
+      text-align: center;
+    }
+
+    #confirmText {
+      margin: 0 0 22px;
+      color: #f2f3ff;
+      font-size: 1.05rem;
+      line-height: 1.6;
+    }
+
+    .confirm-actions {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .confirm-button {
+      min-width: 120px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.08);
+      color: #eef0ff;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+      font-size: 0.95rem;
+    }
+
+    .confirm-button:hover {
+      background: rgba(255,255,255,0.18);
+      transform: translateY(-1px);
+    }
+
+    .confirm-button.primary {
+      background: rgba(184, 172, 255, 0.18);
+      border-color: rgba(184, 172, 255, 0.32);
+    }
+
+    #uploadOverlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 10, 24, 0.65);
+      backdrop-filter: blur(14px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    #uploadOverlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 10, 24, 0.65);
+      backdrop-filter: blur(14px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    #uploadOverlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #renameOverlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 10, 24, 0.65);
+      backdrop-filter: blur(14px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    #renameOverlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #uploadBox {
+      width: min(420px, 90vw);
+      padding: 28px;
+      border-radius: 28px;
+      background: rgba(19, 17, 40, 0.96);
+      border: 1px solid rgba(255,255,255,0.14);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.35);
+      text-align: left;
+    }
+
+    #uploadBox h2 {
+      margin: 0 0 12px;
+      color: #eef0ff;
+      font-size: 1.35rem;
+      letter-spacing: 0.08em;
+    }
+
+    #uploadBox p {
+      margin: 0 0 18px;
+      color: rgba(238,240,255,0.78);
+      line-height: 1.65;
+    }
+
+    #panoramaFileInput {
+      width: 100%;
+      padding: 14px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: #eef0ff;
+      margin-bottom: 20px;
+    }
+
+    .upload-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="app"></canvas>
+
+  <div id="ui">
+    <div class="ui-panel" id="introOverlay">
+      <div>
+        <h1>THE<br />MOMENT</h1>
+      </div>
+      <div id="introOrb"></div>
+      <button id="enterMomentBtn">进入此刻</button>
+    </div>
+
+    <div class="ui-panel" id="confirmOverlay">
+      <div id="confirmBox">
+        <p id="confirmText">您是否决定进入此刻？</p>
+        <div class="confirm-actions">
+          <button id="confirmNoBtn" class="confirm-button">否</button>
+          <button id="confirmYesBtn" class="confirm-button primary">是</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="uploadOverlay">
+      <div id="uploadBox">
+        <h2>导入全景图</h2>
+        <p>两种导入方式：
+          <br>- 选择 <strong>1 张</strong>：本地即时贴图（无需后端）。
+          <br>- 选择 <strong>恰好 4 张</strong>：调用后端 AI 合成全景图并贴图。
+          <br>其他数量不受支持。</p>
+        <input id="panoramaFileInput" type="file" accept="image/*" multiple />
+        <p id="uploadHint" style="color:#cfcfe0;font-size:0.9rem;margin:8px 0 16px;">请选择 1 张（即时贴图）或恰好 4 张（AI 合成）。</p>
+        <div class="upload-actions">
+          <button id="cancelUploadBtn" class="confirm-button">取消</button>
+          <button id="uploadSpaceBtn" class="confirm-button primary" disabled>上传并创建</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="renameOverlay">
+      <div id="uploadBox">
+        <h2>重命名空间</h2>
+        <p>请输入新的空间名称，保存后将在选择器中显示。</p>
+        <input id="renameInput" type="text" placeholder="空间名称" />
+        <div class="upload-actions">
+          <button id="cancelRenameBtn" class="confirm-button">取消</button>
+          <button id="confirmRenameBtn" class="confirm-button primary" disabled>保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="controls">
+      <button id="backBtn" style="display: none;">返回</button>
+      <button id="createSpaceBtn" class="selector-button">创建新空间</button>
+      <div id="selector"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
