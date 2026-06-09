@@ -1,0 +1,61 @@
+[ {
+  "id" : "1709c9ac-79e2-4358-8e08-5e73bd4e95f2",
+  "name" : "test",
+  "generatedImageUrl" : "/uploads/2e8e1826-4911-4716-8fb2-26afac322bf4.jpg",
+  "createdAt" : [ 2026, 6, 9, 23, 37, 17, 394482500 ],
+  "questions" : [ {
+    "id" : "5331edca-23e8-4056-a03c-8f74e5bae5a4",
+    "objectName" : "床",
+    "question" : "今晚，你会在这里做什么样的梦呢？",
+    "userAnswer" : "aaaa",
+    "positionX" : null,
+    "positionY" : null,
+    "answeredAt" : null
+  }, {
+    "id" : "7aadbab2-88c6-4931-83d4-fbdfa4628c2f",
+    "objectName" : "落地灯",
+    "question" : "这个灯光下，你最喜欢读哪本书？",
+    "userAnswer" : "aaaa",
+    "positionX" : null,
+    "positionY" : null,
+    "answeredAt" : null
+  }, {
+    "id" : "f511a87f-ed46-489b-a86c-d8a9dcbe0928",
+    "objectName" : "窗帘",
+    "question" : "这个物品对你来说有什么特殊的意义？",
+    "userAnswer" : "aaaa",
+    "positionX" : null,
+    "positionY" : null,
+    "answeredAt" : null
+  } ]
+}, {
+  "id" : "fdcb0ad3-e13c-4714-98c8-a3e06547f8f7",
+  "name" : "我的空间记忆",
+  "generatedImageUrl" : "https://637d9550.r28.cpolar.top/uploads/2d32827a-8919-4969-8673-80ee666bbc33.jpg",
+  "createdAt" : [ 2026, 6, 9, 23, 57, 42, 825258900 ],
+  "questions" : [ {
+    "id" : "19218ad7-c783-41c2-87e9-1c8bb557261a",
+    "objectName" : "床",
+    "question" : "今晚，你会在这里做什么样的梦呢？",
+    "userAnswer" : "aaa",
+    "positionX" : null,
+    "positionY" : null,
+    "answeredAt" : null
+  }, {
+    "id" : "077982e1-1b5d-46a8-854b-cd9f5f6fe8b9",
+    "objectName" : "落地灯",
+    "question" : "这个灯光下，你最喜欢读哪本书？",
+    "userAnswer" : "a",
+    "positionX" : null,
+    "positionY" : null,
+    "answeredAt" : null
+  }, {
+    "id" : "a6e31878-fcec-4e3e-88ad-9041cae86957",
+    "objectName" : "窗帘",
+    "question" : "这个物品对你来说有什么特殊的意义？",
+    "userAnswer" : "a",
+    "positionX" : null,
+    "positionY" : null,
+    "answeredAt" : null
+  } ]
+} ]

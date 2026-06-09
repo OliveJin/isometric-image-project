@@ -50,7 +50,7 @@ function persistSavedSpaces(newSpaces) {
   }
 
   try {
-    const savedSpaces = newSpaces.filter(space => space.isLocal || space.isSaved);
+    const savedSpaces = newSpaces.filter(space => space.isLocal);
     persistLocalStorageData({ savedSpaces, deletedIds });
   } catch (err) {
     console.warn('Failed to persist spaces to localStorage:', err);
@@ -75,6 +75,12 @@ export async function loadSpaces() {
     const savedSpaces = getSavedSpaces();
     const deletedIds = getDeletedIds();
 
+    const backendSpacesResponse = await fetch('/api/spaces');
+    let backendSpaces = [];
+    if (backendSpacesResponse.ok) {
+      backendSpaces = await backendSpacesResponse.json();
+    }
+
     const mergedMap = new Map();
     baseSpaces.forEach(space => {
       if (!deletedIds.includes(space.id)) {
@@ -86,6 +92,19 @@ export async function loadSpaces() {
       if (!deletedIds.includes(saved.id)) {
         mergedMap.set(saved.id, saved);
       }
+    });
+
+    backendSpaces.forEach(space => {
+      if (!space || !space.id || deletedIds.includes(space.id)) {
+        return;
+      }
+      mergedMap.set(space.id, {
+        ...space,
+        label: space.name || space.id,
+        panorama: space.generatedImageUrl,
+        isSaved: true,
+        isBackend: true,
+      });
     });
 
     spaces = Array.from(mergedMap.values());

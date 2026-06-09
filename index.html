@@ -298,6 +298,100 @@
       pointer-events: auto;
     }
 
+    #questionOverlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(8, 9, 24, 0.82);
+      backdrop-filter: blur(14px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    #questionOverlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #questionBox {
+      width: min(500px, 92vw);
+      padding: 28px;
+      border-radius: 26px;
+      background: rgba(22, 20, 42, 0.98);
+      border: 1px solid rgba(255,255,255,0.14);
+      box-shadow: 0 30px 100px rgba(0,0,0,0.35);
+      text-align: left;
+    }
+
+    #questionBox h2 {
+      margin: 0 0 14px;
+      color: #f4f5ff;
+      font-size: 1.4rem;
+      letter-spacing: 0.04em;
+    }
+
+    #questionBox p {
+      margin: 0 0 18px;
+      color: rgba(238,240,255,0.78);
+      line-height: 1.65;
+    }
+
+    #questionAnswer {
+      width: 100%;
+      min-height: 120px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.05);
+      color: #eef0ff;
+      padding: 14px 16px;
+      resize: vertical;
+      font-family: inherit;
+      font-size: 1rem;
+      margin-bottom: 20px;
+    }
+
+    #questionCounter {
+      margin-bottom: 18px;
+      color: rgba(238,240,255,0.7);
+      font-size: 0.95rem;
+    }
+
+    #hotspotLayer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 11;
+    }
+
+    .hotspot-card {
+      position: absolute;
+      max-width: 240px;
+      background: rgba(20, 18, 40, 0.95);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.32);
+      padding: 14px 16px;
+      color: #eef0ff;
+      font-size: 0.94rem;
+      pointer-events: auto;
+      line-height: 1.5;
+    }
+
+    .hotspot-card strong {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 0.97rem;
+    }
+
+    .hotspot-answer {
+      margin-top: 10px;
+      opacity: 0.9;
+      color: #d6d6ff;
+    }
+
     #renameOverlay {
       position: absolute;
       inset: 0;
@@ -381,12 +475,26 @@
 
     <div id="uploadOverlay">
       <div id="uploadBox">
-        <h2>导入全景图</h2>
-        <p>请选择一张 equirectangular 全景图，或上传普通照片后由后端生成全景图。</p>
-        <input id="panoramaFileInput" type="file" accept="image/*" />
+        <h2>导入空间图片</h2>
+        <p>请选择 1 张图片生成关联问题并创建空间，或选择恰好 4 张图片由后端生成全景和联想提问。</p>
+        <input id="panoramaFileInput" type="file" accept="image/*" multiple />
+        <p id="uploadHint" style="color:#cfcfe0;font-size:0.9rem;margin:8px 0 16px;">请选择 1 张或恰好 4 张图片。</p>
         <div class="upload-actions">
           <button id="cancelUploadBtn" class="confirm-button">取消</button>
           <button id="uploadSpaceBtn" class="confirm-button primary" disabled>上传并创建</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="questionOverlay">
+      <div id="questionBox">
+        <h2 id="questionTitle">联想提问</h2>
+        <p id="questionDescription">回答这些问题，保存后它们会作为空间记忆出现。</p>
+        <div id="questionCounter">1 / 3</div>
+        <textarea id="questionAnswer" placeholder="在这里写下你的回答..."></textarea>
+        <div class="upload-actions">
+          <button id="questionCancelBtn" class="confirm-button">取消</button>
+          <button id="questionNextBtn" class="confirm-button primary">下一题</button>
         </div>
       </div>
     </div>

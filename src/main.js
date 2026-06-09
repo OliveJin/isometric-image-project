@@ -9,7 +9,10 @@ import {
   getEntrySphereById,
   resetCameraPosition,
 } from './scene/entrySpheres.js';
-import { renderSelector } from './ui/selector.js';
+import { renderSpaceMemorySelector } from './ui/spaceMemorySelector.js';
+import { showAssociativePanel, hideAssociativePanel } from './ui/associativePanel.js';
+import { createTextHotspot, clearHotspots } from './scene/textHotspot.js';
+import { SpaceManager } from './scene/spaceManager.js';
 
 let scene;
 let camera;
@@ -22,6 +25,9 @@ let isIntroVisible = true;
 let isConfirmVisible = false;
 let pendingSpaceId = null;
 let currentRenameId = null;
+
+const spaceManager = new SpaceManager();
+let activePreview = null;
 
 const selectionTarget = new THREE.Vector3(0, 0.3, 0);
 const selectionPosition = new THREE.Vector3(0, 1.12, 8.2);
@@ -37,7 +43,7 @@ async function init() {
   controls.enabled = false;
 
   spacesData = await loadSpaces();
-  renderSelector(spacesData, prepareFocusOnSphere, openRenameOverlay, deleteSpace);
+  renderSpaceMemorySelector(spacesData, prepareFocusOnSphere, openRenameOverlay, deleteSpace);
   setupBackButton();
   setupPointerEvents();
   setupIntro();
@@ -102,29 +108,46 @@ function setupUploadUI() {
   const fileInput = document.getElementById('panoramaFileInput');
   const uploadButton = document.getElementById('uploadSpaceBtn');
   const cancelUploadBtn = document.getElementById('cancelUploadBtn');
+  const uploadHint = document.getElementById('uploadHint');
 
-  if (!createButton || !uploadOverlay || !fileInput || !uploadButton || !cancelUploadBtn) return;
+  if (!createButton || !uploadOverlay || !fileInput || !uploadButton || !cancelUploadBtn || !uploadHint) return;
 
   createButton.addEventListener('click', openUploadOverlay);
 
   fileInput.addEventListener('change', () => {
-    uploadButton.disabled = !fileInput.files?.length;
+    const count = fileInput.files?.length || 0;
+    uploadButton.disabled = count !== 1 && count !== 4;
+    if (count === 1) {
+      uploadButton.textContent = '上传并生成提问';
+      uploadHint.textContent = '选择 1 张图片即可生成关联问题并创建空间。';
+    } else if (count === 4) {
+      uploadButton.textContent = 'AI 合成：生成提问';
+      uploadHint.textContent = '选择 4 张图片由后端生成全景与联想问题。';
+    } else {
+      uploadButton.textContent = '上传并创建';
+      uploadHint.textContent = '请选择 1 张或恰好 4 张图片。';
+    }
   });
 
   uploadButton.addEventListener('click', async () => {
-    if (!fileInput.files?.length) return;
+    const files = Array.from(fileInput.files || []);
+    if (files.length !== 1 && files.length !== 4) {
+      alert('请选择 1 张或恰好 4 张图片。');
+      return;
+    }
+
     uploadButton.disabled = true;
-    uploadButton.textContent = '上传中...';
+    uploadButton.textContent = '处理中...';
 
     try {
-      await uploadPanorama(fileInput.files[0]);
+      await uploadAndCreateSpace(files);
       hideUploadOverlay();
     } catch (err) {
       console.error(err);
       alert('上传失败，请稍后再试');
     } finally {
       uploadButton.disabled = false;
-      uploadButton.textContent = '上传并创建';
+      uploadButton.textContent = files.length === 4 ? 'AI 合成：生成提问' : '上传并生成提问';
     }
   });
 
@@ -212,7 +235,7 @@ async function uploadPanorama(file) {
   formData.append('panorama', file);
 
   try {
-    const res = await fetch('/api/spaces/upload', {
+    const res = await fetch('/api/upload', {
       method: 'POST',
       body: formData,
     });
@@ -234,15 +257,69 @@ async function uploadPanorama(file) {
   }
 }
 
+async function uploadAndCreateSpace(files) {
+  const formData = new FormData();
+  files.forEach(file => formData.append('files', file));
+
+  const uploadRes = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!uploadRes.ok) {
+    throw new Error(`Upload failed: ${uploadRes.status}`);
+  }
+
+  const imageUrls = await uploadRes.json();
+  if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
+    throw new Error('Upload API returned no images');
+  }
+
+  const preview = await spaceManager.previewSpace(imageUrls);
+  if (!preview || !preview.generatedImageUrl) {
+    throw new Error('生成空间预览失败');
+  }
+
+  activePreview = {
+    generatedImageUrl: preview.generatedImageUrl,
+    questions: preview.questions || [],
+  };
+
+  showAssociativePanel(activePreview.questions, async (spaceName, answeredQuestions) => {
+    await finalizeSpace(spaceName, answeredQuestions);
+  }, () => {
+    activePreview = null;
+  });
+}
+
+async function finalizeSpace(name, answeredQuestions) {
+  if (!activePreview) return;
+  const created = await spaceManager.createNewSpace(name, activePreview.generatedImageUrl, answeredQuestions);
+  const normalized = {
+    id: created.id,
+    panorama: created.generatedImageUrl,
+    label: created.name,
+    questions: created.questions,
+    isSaved: true,
+    isBackend: true,
+  };
+  addSpace(normalized);
+  await enterSpace(normalized.id);
+}
+
 function addSpace(space) {
   const exists = spacesData.some(item => item.id === space.id);
   const normalizedSpace = {
     ...space,
+    panorama: space.panorama || space.generatedImageUrl,
+    label: space.label || space.name || space.id,
     isSaved: true,
   };
 
   if (!exists) {
     spacesData.push(normalizedSpace);
+  } else {
+    spacesData = spacesData.map(item => item.id === normalizedSpace.id ? normalizedSpace : item);
   }
 
   setSpaces(spacesData);
@@ -282,7 +359,7 @@ function deleteSpace(id) {
 }
 
 function refreshSpaces() {
-  renderSelector(spacesData, prepareFocusOnSphere, openRenameOverlay, deleteSpace, openRenameOverlay, deleteSpace);
+  renderSpaceMemorySelector(spacesData, prepareFocusOnSphere, openRenameOverlay, deleteSpace);
   if (!currentSpaceId) {
     createEntrySpheres(scene, spacesData);
   }
@@ -470,7 +547,11 @@ async function confirmEnterSpace() {
   updateBackButton();
   hideSelector();
   clearEntrySpheres(scene);
+  clearHotspots();
   createSphere(scene, space.panorama);
+  if (Array.isArray(space.questions)) {
+    space.questions.forEach(q => createTextHotspot(q));
+  }
   setSpaceControls();
   controls.enabled = true;
 }
@@ -492,7 +573,11 @@ async function enterSpace(id) {
   currentSpaceId = id;
   updateBackButton();
   clearEntrySpheres(scene);
+  clearHotspots();
   createSphere(scene, space.panorama);
+  if (Array.isArray(space.questions)) {
+    space.questions.forEach(q => createTextHotspot(q));
+  }
   hideSelector();
   setSpaceControls();
   controls.enabled = true;
@@ -500,6 +585,7 @@ async function enterSpace(id) {
 
 export async function exitSpace() {
   clearSphere(scene);
+  clearHotspots();
   currentSpaceId = null;
   updateBackButton();
   showSelector();

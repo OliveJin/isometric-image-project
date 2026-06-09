@@ -1,5 +1,6 @@
 package com.dd.themoment.controller;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -11,6 +12,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/upload")
 public class UploadController {
+
+    @Value("${app.upload-base-url}")
+    private String uploadBaseUrl;
 
     @PostMapping
     public List<String> upload(
@@ -31,6 +35,8 @@ public class UploadController {
         List<String> imageUrls =
                 new ArrayList<>();
 
+        String baseUrl = normalizeBaseUrl(uploadBaseUrl);
+
         for (MultipartFile file : files) {
 
             String fileName =
@@ -42,12 +48,18 @@ public class UploadController {
             file.transferTo(dest);
 
             String imageUrl =
-                    "https://637d9550.r28.cpolar.top/uploads/"
-                            + fileName;
+                    baseUrl + "/uploads/" + fileName;
 
             imageUrls.add(imageUrl);
         }
 
         return imageUrls;
+    }
+
+    private String normalizeBaseUrl(String url) {
+        if (url == null) {
+            return "";
+        }
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }
