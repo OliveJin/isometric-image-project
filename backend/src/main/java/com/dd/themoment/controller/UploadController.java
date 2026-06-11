@@ -20,6 +20,7 @@ public class UploadController {
         String uploadDir =
                 System.getProperty("user.dir")
                         + File.separator
+                        + "backend" + File.separator
                         + "uploads";
 
         File dir = new File(uploadDir);
@@ -41,9 +42,7 @@ public class UploadController {
 
             file.transferTo(dest);
 
-            String imageUrl =
-                    "https://637d9550.r28.cpolar.top/uploads/"
-                            + fileName;
+            String imageUrl = "/uploads/" + fileName;
 
             imageUrls.add(imageUrl);
         }

@@ -382,12 +382,13 @@
     <div id="uploadOverlay">
       <div id="uploadBox">
         <h2>导入全景图</h2>
-        <p>两种导入方式：
+        <p>三种导入方式：
           <br>- 选择 <strong>1 张</strong>：本地即时贴图（无需后端）。
           <br>- 选择 <strong>恰好 4 张</strong>：调用后端 AI 合成全景图并贴图。
+          <br>- 选择 <strong>10 张以上</strong>：使用 OpenCV 自动拼接 360° 全景图（图片越多还原越精确）。
           <br>其他数量不受支持。</p>
         <input id="panoramaFileInput" type="file" accept="image/*" multiple />
-        <p id="uploadHint" style="color:#cfcfe0;font-size:0.9rem;margin:8px 0 16px;">请选择 1 张（即时贴图）或恰好 4 张（AI 合成）。</p>
+        <p id="uploadHint" style="color:#cfcfe0;font-size:0.9rem;margin:8px 0 16px;">请选择 1 张（即时贴图）、恰好 4 张（AI 合成）或 10 张以上（OpenCV 全景拼接）。</p>
         <div class="upload-actions">
           <button id="cancelUploadBtn" class="confirm-button">取消</button>
           <button id="uploadSpaceBtn" class="confirm-button primary" disabled>上传并创建</button>

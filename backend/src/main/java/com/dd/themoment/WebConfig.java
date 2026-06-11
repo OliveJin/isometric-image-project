@@ -8,8 +8,11 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // user.dir 是项目根目录，uploads 实际在 backend/uploads/
+        String userDir = System.getProperty("user.dir");
+        String uploadsPath = userDir + "/backend/uploads/";
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:uploads/");
+                .addResourceLocations("file:" + uploadsPath);
     }
 
     @Override

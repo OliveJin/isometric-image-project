@@ -113,15 +113,9 @@ function setupUploadUI() {
       uploadButton.textContent = '上传并创建';
       return;
     }
-    if (fileInput.files.length > 4) {
-      alert('请选择1张或恰好4张照片；已截取前4张作为候选。');
-      const dt = new DataTransfer();
-      Array.from(fileInput.files).slice(0, 4).forEach(f => dt.items.add(f));
-      fileInput.files = dt.files;
-    }
-
     const count = fileInput.files.length;
-    // Only allow exactly 1 (local) or exactly 4 (AI)
+
+    // 1 张 = 本地贴图；4 张 = AI 合成；10+ = OpenCV 全景拼接；其他数量拒绝
     if (count === 1) {
       uploadButton.disabled = false;
       uploadButton.textContent = '本地贴图：立即创建 (1 张)';
@@ -130,10 +124,16 @@ function setupUploadUI() {
       uploadButton.disabled = false;
       uploadButton.textContent = 'AI 合成并创建 (恰好4张)';
       document.getElementById('uploadHint').innerText = '将把恰好4张照片发送给后端进行 AI 分析与合成。';
+    } else if (count >= 10) {
+      uploadButton.disabled = false;
+      uploadButton.textContent = `OpenCV 全景拼接并创建 (${count} 张)`;
+      document.getElementById('uploadHint').innerText = `将对 ${count} 张照片进行 OpenCV 自动拼接，生成全景图。图片越多还原越精确。此过程可能需要数十秒。`;
     } else {
-      uploadButton.disabled = true;
-      uploadButton.textContent = '上传并创建';
-      document.getElementById('uploadHint').innerText = '请选择 1 张（即时贴图）或恰好 4 张（AI 合成）。';
+      alert('请选择 1 张（即时贴图）、恰好 4 张（AI 合成）或 10 张以上（OpenCV 全景拼接）。');
+      const dt = new DataTransfer();
+      fileInput.value = '';
+      fileInput.files = dt.files;
+      return;
     }
   });
 
@@ -175,7 +175,24 @@ function setupUploadUI() {
       return;
     }
 
-    alert('请选择 1 张用于本地即时贴图，或恰好 4 张用于 AI 合成。');
+    // Handle 10+ image OpenCV stitch flow
+    if (files.length >= 10) {
+      uploadButton.disabled = true;
+      uploadButton.textContent = `OpenCV 拼接中... (${files.length} 张)`;
+      try {
+        await uploadOpenCVImages(files);
+        hideUploadOverlay();
+      } catch (err) {
+        console.error(err);
+        alert('OpenCV 全景拼接失败，请稍后再试');
+      } finally {
+        uploadButton.disabled = false;
+        uploadButton.textContent = `OpenCV 全景拼接并创建 (${files.length} 张)`;
+      }
+      return;
+    }
+
+    alert('请选择 1 张用于本地即时贴图，或恰好 4 张用于 AI 合成，或 10 张以上用于 OpenCV 全景拼接。');
   });
 
   cancelUploadBtn.addEventListener('click', () => {
@@ -410,6 +427,46 @@ async function uploadPhotos(files) {
     console.warn('Upload failed, creating temporary preview', err);
     // fallback to first file temporary preview
     await createTemporarySpace(files[0]);
+  }
+}
+
+async function uploadOpenCVImages(files) {
+  const formData = new FormData();
+  files.forEach(f => formData.append('images', f));
+
+  try {
+    const res = await fetch('/api/opencv/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`OpenCV upload failed: ${res.status} - ${errText}`);
+    }
+
+    const data = await res.json();
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    const panoramaUrl = data?.url;
+    if (!panoramaUrl) {
+      throw new Error('未从 OpenCV 服务获取到全景图 URL');
+    }
+
+    console.log('=== OpenCV 拼接成功 ===', panoramaUrl);
+
+    const space = {
+      id: `space-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      panorama: panoramaUrl,
+      label: 'OpenCV 拼接的空间',
+    };
+
+    addSpace(space);
+  } catch (err) {
+    console.error('OpenCV upload error:', err);
+    throw err;
   }
 }
 
