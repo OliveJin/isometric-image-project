@@ -26,7 +26,7 @@ public class AIController {
     ) throws Exception {
 
         System.out.println("===== 接收到图片 =====");
-
+        System.out.println("user.dir = " + System.getProperty("user.dir"));
         imageUrls.forEach(System.out::println);
 
         // Vision识别，多张图
@@ -52,6 +52,8 @@ public class AIController {
                     "Prompt提取失败"
             );
         }
+
+        System.out.println("===== Prompt提取成功，准备调用 Seedream =====");
 
         // Seedream生图
         String result = doubaoService.generateImage(

@@ -10,8 +10,14 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -31,6 +37,57 @@ public class DoubaoService {
                 .replace("\"", "\\\"")
                 .replace("\n", " ")
                 .replace("\r", " ");
+    }
+
+    /**
+     * 将可能的本地上传路径转换为 base64 data URL，
+     * 以便外部 AI API（火山引擎 ARK）可以读取图片。
+     * 如果是 http(s) 开头的公网 URL 则直接返回。
+     */
+    private String toAccessibleUrl(String url) {
+        if (url == null || url.isBlank()) return url;
+        // 已经是公网 URL（如 AI 生成的结果），直接返回
+        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) {
+            return url;
+        }
+        // 相对路径，提取文件名
+        // 格式如: /uploads/70f0776f-...jpg → 文件名: 70f0776f-...jpg
+        String filename = url;
+        // 去掉前导 /
+        if (filename.startsWith("/")) filename = filename.substring(1);
+        // 取最后一段（文件名）
+        int lastSlash = filename.lastIndexOf('/');
+        if (lastSlash >= 0) filename = filename.substring(lastSlash + 1);
+        // 与 UploadController 保持一致：使用 user.dir + "backend/uploads/"
+        String userDir = System.getProperty("user.dir");
+        String[] candidates = {
+            userDir + File.separator + "backend" + File.separator + "uploads" + File.separator + filename,
+            userDir + File.separator + "uploads" + File.separator + filename,
+        };
+        byte[] data = null;
+        for (String candidate : candidates) {
+            Path p = Paths.get(candidate);
+            if (Files.exists(p)) {
+                try {
+                    data = Files.readAllBytes(p);
+                    System.out.println("DoubaoService: 读取图片成功 -> " + p);
+                } catch (IOException e) {
+                    System.err.println("DoubaoService: 读取图片失败: " + p + " -> " + e.getMessage());
+                }
+                break;
+            }
+        }
+        if (data == null) {
+            System.err.println("DoubaoService: 找不到本地图片文件，搜索路径: " + String.join(", ", candidates));
+            return url; // 回退到原路径（会报错）
+        }
+        String base64 = Base64.getEncoder().encodeToString(data);
+        String mimeType = "image/jpeg";
+        if (filename.toLowerCase().endsWith(".png")) mimeType = "image/png";
+        else if (filename.toLowerCase().endsWith(".webp")) mimeType = "image/webp";
+        String dataUrl = "data:" + mimeType + ";base64," + base64;
+        System.out.println("DoubaoService: 转换 data URL 长度 = " + dataUrl.length() + " 字符");
+        return dataUrl;
     }
 
     private final OkHttpClient client = createUnsafeClient();
@@ -85,7 +142,7 @@ public class DoubaoService {
         StringBuilder imageContents = new StringBuilder();
 
         for (String url : imageUrls) {
-
+            String accessible = toAccessibleUrl(url);
             imageContents.append("""
             ,
             {
@@ -93,7 +150,7 @@ public class DoubaoService {
               "image_url":"%s"
             }
             """.formatted(
-                    escape(url)
+                    escape(accessible)
             ));
         }
 
@@ -230,13 +287,14 @@ Return JSON only.
         StringBuilder images = new StringBuilder();
 
         for (String url : imageUrls) {
+            String accessible = toAccessibleUrl(url);
 
             if (images.length() > 0) {
                 images.append(",");
             }
 
             images.append("\"")
-                    .append(url)
+                    .append(accessible)
                     .append("\"");
         }
 

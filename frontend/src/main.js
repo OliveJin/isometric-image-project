@@ -457,9 +457,21 @@ async function uploadOpenCVImages(files) {
 
     console.log('=== OpenCV 拼接成功 ===', panoramaUrl);
 
+    // Convert Python service URL (e.g. http://localhost:5000/uploads/panorama-xxx.jpg)
+    // to a relative path served by Spring Boot (e.g. /uploads/panorama-xxx.jpg)
+    let panoramaForSphere = panoramaUrl;
+    try {
+      const parsed = new URL(panoramaUrl);
+      if (parsed.origin !== window.location.origin) {
+        panoramaForSphere = parsed.pathname;
+      }
+    } catch (e) {
+      // Not a valid URL, use as-is
+    }
+
     const space = {
       id: `space-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      panorama: panoramaUrl,
+      panorama: panoramaForSphere,
       label: 'OpenCV 拼接的空间',
     };
 

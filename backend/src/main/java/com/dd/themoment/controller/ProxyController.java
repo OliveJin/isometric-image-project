@@ -61,7 +61,7 @@ public class ProxyController {
             .body(body);
     }
 
-    // 下载外部图片并保存到本地 uploads/ 目录，返回本地可访问路径 /uploads/{filename}
+    // 下载外部图片并保存到本地 backend/uploads/ 目录，返回本地可访问路径 /uploads/{filename}
     @GetMapping("/api/fetch-and-save")
     public ResponseEntity<String> fetchAndSave(@RequestParam("url") String url) throws Exception {
         if (url == null || url.isBlank() || !(url.startsWith("http://") || url.startsWith("https://"))) {
@@ -87,8 +87,24 @@ public class ProxyController {
         else if (contentType.contains("webp")) ext = ".webp";
         else if (contentType.contains("jpeg") || contentType.contains("jpg")) ext = ".jpg";
 
-        java.nio.file.Path uploadsDir = java.nio.file.Paths.get("uploads");
-        java.nio.file.Files.createDirectories(uploadsDir);
+        // 与 UploadController 保持一致：保存到 user.dir/backend/uploads/
+        String userDir = System.getProperty("user.dir");
+        String[] candidates = {
+            userDir + java.io.File.separator + "backend" + java.io.File.separator + "uploads",
+            userDir + java.io.File.separator + "uploads",
+        };
+        java.nio.file.Path uploadsDir = null;
+        for (String candidate : candidates) {
+            java.nio.file.Path p = java.nio.file.Paths.get(candidate);
+            if (java.nio.file.Files.exists(p)) {
+                uploadsDir = p;
+                break;
+            }
+        }
+        if (uploadsDir == null) {
+            uploadsDir = java.nio.file.Paths.get("backend", "uploads");
+            java.nio.file.Files.createDirectories(uploadsDir);
+        }
 
         String filename = java.util.UUID.randomUUID().toString() + ext;
         java.nio.file.Path target = uploadsDir.resolve(filename);
