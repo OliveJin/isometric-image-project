@@ -115,3 +115,26 @@ export function markSpaceDeleted(id) {
 export function getSpaceById(id) {
   return spaces.find(space => space.id === id);
 }
+
+/** 更新指定空间并持久化到 localStorage */
+export function updateSpace(updatedSpace) {
+  if (!updatedSpace || !updatedSpace.id) {
+    throw new Error('Invalid space object: missing id');
+  }
+  const index = spaces.findIndex(s => s.id === updatedSpace.id);
+  const mergedSpace = {
+    ...spaces[index],
+    ...updatedSpace,
+    audio: {
+      ...(spaces[index]?.audio || {}),
+      ...(updatedSpace?.audio || {}),
+    },
+  };
+  if (index >= 0) {
+    spaces[index] = mergedSpace;
+  } else {
+    spaces.push(mergedSpace);
+  }
+  spaces[index >= 0 ? index : spaces.length - 1].isSaved = true;
+  persistSavedSpaces(spaces);
+}

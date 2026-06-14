@@ -10,6 +10,14 @@ import {
   resetCameraPosition,
 } from './scene/entrySpheres.js';
 import { renderSelector } from './ui/selector.js';
+import audioManager from './audio/AudioManager.js';
+import ambienceManager from './audio/AmbienceManager.js';
+import { initBGMControl, hideBGMControl } from './ui/BGMControl.js';
+import { show as showBubble, hide as hideBubble } from './ui/DialogueBubble.js';
+import { getVoicePointSprites } from './scene/voicePoints.js';
+import { getGuidePointMeshes } from './scene/guidePoints.js';
+import { initSpaceEditor, openSpaceEditor, register3DContext } from './ui/SpaceEditor.js';
+import './ui/editor.css';
 
 let scene;
 let camera;
@@ -18,10 +26,13 @@ let controls;
 let raycaster;
 let spacesData = [];
 let currentSpaceId = null;
+let currentSpace = null;
 let isIntroVisible = true;
 let isConfirmVisible = false;
 let pendingSpaceId = null;
 let currentRenameId = null;
+
+let pointerDownListener = null;
 
 const selectionTarget = new THREE.Vector3(0, 0.3, 0);
 const selectionPosition = new THREE.Vector3(0, 1.12, 8.2);
@@ -37,7 +48,9 @@ async function init() {
   controls.enabled = false;
 
   spacesData = await loadSpaces();
-  renderSelector(spacesData, prepareFocusOnSphere, openRenameOverlay, deleteSpace);
+  initSpaceEditor();
+  register3DContext(scene, camera, renderer);  // 注册3D上下文以支持交互点位置编辑
+  renderSelector(spacesData, prepareFocusOnSphere, openRenameOverlay, deleteSpace, openSpaceEditor);
   setupBackButton();
   setupPointerEvents();
   setupIntro();
@@ -714,13 +727,25 @@ async function confirmEnterSpace() {
   if (!space) return;
 
   currentSpaceId = pendingSpaceId;
+  currentSpace = space;
   pendingSpaceId = null;
   updateBackButton();
   hideSelector();
   clearEntrySpheres(scene);
-  createSphere(scene, space.panorama);
+  createSphere(scene, space.panorama, space);  // 传递完整 space 对象
   setSpaceControls();
   controls.enabled = true;
+
+  // 初始化音频系统（在用户手势后允许 AudioContext）
+  audioManager.init();
+  initBGMControl();
+  ambienceManager.setAmbiences(space.audio?.ambiences || []);
+  if (space.audio?.bgm) {
+    try { audioManager.playBGM(space.audio.bgm); } catch (e) { console.warn('BGM play failed:', e); }
+  }
+
+  // 设置语音点/引导点点击事件
+  setupVoiceGuidePointerEvents();
 }
 
 async function cancelConfirm() {
@@ -738,12 +763,24 @@ async function enterSpace(id) {
   }
 
   currentSpaceId = id;
+  currentSpace = space;
   updateBackButton();
   clearEntrySpheres(scene);
-  createSphere(scene, space.panorama);
+  createSphere(scene, space.panorama, space);
   hideSelector();
   setSpaceControls();
   controls.enabled = true;
+
+  // 初始化音频系统
+  audioManager.init();
+  initBGMControl();
+  ambienceManager.setAmbiences(space.audio?.ambiences || []);
+  if (space.audio?.bgm) {
+    try { audioManager.playBGM(space.audio.bgm); } catch (e) { console.warn('BGM play failed:', e); }
+  }
+
+  // 设置语音点/引导点点击事件
+  setupVoiceGuidePointerEvents();
 }
 
 export async function exitSpace() {

@@ -10,27 +10,30 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // user.dir 因启动方式不同可能不同（IDE/backend/ vs mvn spring-boot:run/项目根目录）
-        // 尝试多个可能的路径
+        // user.dir varies by launch method (IDE/backend/ vs mvn spring-boot:run/ project root).
+        // Try multiple possible paths, resolve with Paths for cross-platform safety.
         String userDir = System.getProperty("user.dir");
-        String[] candidates = {
-            userDir + "/backend/uploads/",
-            userDir + "/uploads/",
-            userDir + "/uploads"
+        java.nio.file.Path uploadsPath = null;
+        java.nio.file.Path[] candidates = {
+            Path.of(userDir, "backend", "uploads"),
+            Path.of(userDir, "uploads"),
         };
-        String uploadsPath = null;
-        for (String candidate : candidates) {
-            File dir = new File(candidate.replace("/", java.io.File.separator));
-            if (dir.exists() && dir.isDirectory()) {
+        for (java.nio.file.Path candidate : candidates) {
+            if (candidate.toFile().exists() && candidate.toFile().isDirectory()) {
                 uploadsPath = candidate;
                 break;
             }
         }
         if (uploadsPath == null) {
-            uploadsPath = userDir + "/backend/uploads/";
+            uploadsPath = Path.of(userDir, "backend", "uploads");
+            java.nio.file.Files.createDirectories(uploadsPath);
         }
+
+        // Use toUri().toASCIIString() to get a proper file:/// URL (handles Windows backslashes)
+        String resourceLocation = "file:" + uploadsPath.toUri().toASCIIString();
         registry.addResourceHandler("/uploads/**")
-                .addResourceLocations("file:" + uploadsPath);
+                .addResourceLocations(resourceLocation);
+        System.out.println("[WebConfig] Serving /uploads/** from: " + resourceLocation);
     }
 
     @Override

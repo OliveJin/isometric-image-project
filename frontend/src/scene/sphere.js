@@ -1,8 +1,12 @@
 import * as THREE from 'three';
+import { createVoicePoints, clearVoicePoints, getVoicePointSprites } from './voicePoints.js';
+import { createGuidePoints, clearGuidePoints, getGuidePointMeshes } from './guidePoints.js';
 let currentMesh = null;
 let currentFogMesh = null;
 
 export function clearSphere(scene) {
+  clearVoicePoints();
+  clearGuidePoints();
   if (currentMesh) {
     scene.remove(currentMesh);
     if (currentMesh.geometry) currentMesh.geometry.dispose();
@@ -98,7 +102,7 @@ function createFogOverlayMaterial(texture) {
   });
 }
 
-export function createSphere(scene, texturePath) {
+export function createSphere(scene, texturePath, space) {
   // 先清理旧的
   clearSphere(scene);
 
@@ -117,4 +121,10 @@ export function createSphere(scene, texturePath) {
   fogMesh.renderOrder = 1;
   scene.add(fogMesh);
   currentFogMesh = fogMesh;
+
+  // 创建语音点和引导点（如果空间有 audio 配置）
+  if (space?.audio) {
+    createVoicePoints(scene, space.audio.voicePoints);
+    createGuidePoints(scene, space.audio.guidePoints);
+  }
 }
