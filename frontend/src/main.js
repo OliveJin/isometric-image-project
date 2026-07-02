@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { initScene } from './scene/scene.js';
-import { loadSpaces, getSpaceById, setSpaces, saveCreatedSpaces, markSpaceDeleted } from './scene/loader.js';
+import { loadSpaces, getSpaceById, setSpaces, saveCreatedSpaces, markSpaceDeleted, syncSpaceToBackend, deleteSpaceFromBackend } from './scene/loader.js';
 import { createSphere, clearSphere } from './scene/sphere.js';
 import {
   createEntrySpheres,
@@ -13,9 +13,10 @@ import { renderSelector } from './ui/selector.js';
 import audioManager from './audio/AudioManager.js';
 import ambienceManager from './audio/AmbienceManager.js';
 import { initBGMControl, hideBGMControl } from './ui/BGMControl.js';
-import { show as showBubble, hide as hideBubble } from './ui/DialogueBubble.js';
 import { getVoicePointSprites } from './scene/voicePoints.js';
-import { getGuidePointMeshes } from './scene/guidePoints.js';
+import { getGuidePointMeshes, updateGuidePointAnimations } from './scene/guidePoints.js';
+import { updateVoicePointAnimations } from './scene/voicePoints.js';
+import { registerFrameCallback, clearFrameCallbacks } from './scene/scene.js';
 import { initSpaceEditor, openSpaceEditor, register3DContext } from './ui/SpaceEditor.js';
 import './ui/editor.css';
 
@@ -191,13 +192,14 @@ function setupUploadUI() {
     // Handle 10+ image OpenCV stitch flow
     if (files.length >= 10) {
       uploadButton.disabled = true;
-      uploadButton.textContent = `OpenCV 拼接中... (${files.length} 张)`;
+      uploadButton.textContent = `JavaCV 拼接中... (${files.length} 张)`;
       try {
         await uploadOpenCVImages(files);
         hideUploadOverlay();
       } catch (err) {
         console.error(err);
-        alert('OpenCV 全景拼接失败，请稍后再试');
+        const detail = err.message || '';
+        alert('全景拼接失败\n\n' + detail + '\n\n请确保：\n1. 图片之间有 30%-50% 重叠区域\n2. 拍摄角度变化不要过大\n3. 图片数量 ≥ 10 张');
       } finally {
         uploadButton.disabled = false;
         uploadButton.textContent = `OpenCV 全景拼接并创建 (${files.length} 张)`;
@@ -508,6 +510,12 @@ function addSpace(space) {
 
   setSpaces(spacesData);
   saveCreatedSpaces(spacesData);
+
+  // 异步同步到后端（不阻塞UI）
+  syncSpaceToBackend(normalizedSpace).catch(err =>
+    console.warn('后端同步失败（本地已保存）:', err.message)
+  );
+
   refreshSpaces();
 }
 
@@ -519,6 +527,12 @@ function renameSpace(id, label) {
   space.isSaved = true;
   setSpaces(spacesData);
   saveCreatedSpaces(spacesData);
+
+  // 异步同步到后端
+  syncSpaceToBackend(space).catch(err =>
+    console.warn('后端同步失败（本地已保存）:', err.message)
+  );
+
   refreshSpaces();
 }
 
@@ -534,6 +548,11 @@ function deleteSpace(id) {
   setSpaces(spacesData);
   saveCreatedSpaces(spacesData);
   markSpaceDeleted(id);
+
+  // 异步从后端删除
+  deleteSpaceFromBackend(id).catch(err =>
+    console.warn('后端删除失败（本地已删除）:', err.message)
+  );
 
   if (pendingSpaceId === id) {
     pendingSpaceId = null;
@@ -746,6 +765,12 @@ async function confirmEnterSpace() {
 
   // 设置语音点/引导点点击事件
   setupVoiceGuidePointerEvents();
+
+  // 注册泛光呼吸动画
+  registerFrameCallback((time) => {
+    updateGuidePointAnimations(time);
+    updateVoicePointAnimations(time);
+  });
 }
 
 async function cancelConfirm() {
@@ -783,7 +808,128 @@ async function enterSpace(id) {
   setupVoiceGuidePointerEvents();
 }
 
+/** 创建靠近3D点的文本提示气泡 */
+let tooltipEl = null;
+let tooltipTimeout = null;
+
+function showTooltip(text, screenX, screenY) {
+  // 清除旧的
+  hideTooltip();
+
+  if (!text) return;
+
+  const tooltip = document.createElement('div');
+  tooltip.style.cssText = `
+    position: fixed;
+    left: ${screenX}px;
+    top: ${screenY - 10}px;
+    transform: translate(-50%, -100%);
+    z-index: 300;
+    max-width: 260px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(15, 14, 29, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    color: #f2f3ff;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    pointer-events: auto;
+    white-space: normal;
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  `;
+  tooltip.innerHTML = `<p style="margin: 0;">${text}</p>`;
+  document.body.appendChild(tooltip);
+
+  requestAnimationFrame(() => {
+    tooltip.style.opacity = '1';
+  });
+
+  tooltipEl = tooltip;
+}
+
+function hideTooltip() {
+  clearTimeout(tooltipTimeout);
+  if (tooltipEl) {
+    tooltipEl.style.opacity = '0';
+    setTimeout(() => {
+      if (tooltipEl && tooltipEl.parentNode) {
+        tooltipEl.remove();
+      }
+      tooltipEl = null;
+    }, 250);
+  }
+}
+
+/** 设置语音点和引导点的点击事件 */
+function setupVoiceGuidePointerEvents() {
+  // 清除旧的
+  if (pointerDownListener) {
+    renderer.domElement.removeEventListener('pointerdown', pointerDownListener);
+  }
+
+  const allObjects = [
+    ...getGuidePointMeshes(),
+    ...getVoicePointSprites(),
+  ];
+
+  pointerDownListener = (event) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera({ x, y }, camera);
+    const intersects = raycaster.intersectObjects(allObjects, true);
+
+    if (intersects.length > 0) {
+      const hit = intersects[0].object;
+      // 如果点到的是光环，获取关联的 sprite/mesh
+      const root = hit.userData?.parentMesh || hit.userData?.parentSprite || hit;
+      const gp = root.userData?.guidePoint;
+      const vp = root.userData?.voicePoint;
+      const pointData = gp || vp;
+
+      if (!pointData) return;
+
+      // 获取 3D 点在屏幕上的位置（使用关联对象的实际位置）
+      const targetPos = root.position || hit.parent?.position;
+      if (!targetPos) return;
+      const screenPos = new THREE.Vector3();
+      screenPos.copy(targetPos);
+      screenPos.project(camera);
+
+      const sx = (screenPos.x * 0.5 + 0.5) * rect.width;
+      const sy = (-screenPos.y * 0.5 + 0.5) * rect.height;
+
+      // 显示文本提示
+      showTooltip(pointData.text || '', sx, sy);
+
+      // 语音点：播放关联的环境音
+      if (vp && vp.file) {
+        try {
+          audioManager.playAmbience(vp.ambienceId, vp.file, 'center');
+        } catch (e) {
+          console.warn('Ambience play failed:', e);
+        }
+      }
+    }
+  };
+
+  renderer.domElement.addEventListener('pointerdown', pointerDownListener);
+}
+
 export async function exitSpace() {
+  // 停止背景音乐
+  audioManager.stopBGM();
+  audioManager.destroy();
+  hideBGMControl();
+
+  // 清除帧回调和提示气泡
+  clearFrameCallbacks();
+  hideTooltip();
+
   clearSphere(scene);
   currentSpaceId = null;
   updateBackButton();

@@ -3,17 +3,26 @@
  * 允许编辑空间内的环境音、背景音乐、引导点和语音点
  */
 
-import { getSpaceById, updateSpace, saveCreatedSpaces } from '../scene/loader.js';
+import { getSpaceById, updateSpace, syncSpaceToBackend } from '../scene/loader.js';
 import { initPointEditor, enterEditMode, exitEditMode, isInEditMode } from '../scene/pointEditor.js';
 
-/** 将文件转换为 DataURL */
-function fileToDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+/** 上传音频文件到后端，返回服务器路径 */
+async function uploadAudioFile(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch('/api/upload/audio', {
+    method: 'POST',
+    body: formData,
   });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`音频上传失败 (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  return data; // { url, fileName, size }
 }
 
 let currentEditingSpace = null;
@@ -252,13 +261,13 @@ function setupEditorEvents() {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const audioUrl = await fileToDataURL(file);
+        const result = await uploadAudioFile(file);
         currentEditingSpace.audio = currentEditingSpace.audio || {};
-        currentEditingSpace.audio.bgm = audioUrl;
+        currentEditingSpace.audio.bgm = result.url;
         document.getElementById('currentBGM').textContent = file.name;
-        console.log('✅ BGM文件已加载:', file.name);
+        console.log('✅ BGM已上传到服务端:', result.url);
       } catch (err) {
-        alert('❌ 文件读取失败: ' + err.message);
+        alert('❌ 音频上传失败: ' + err.message);
       }
     }
   });
@@ -290,12 +299,12 @@ function setupEditorEvents() {
       const sector = e.target.dataset.sector;
       if (file) {
         try {
-          const audioUrl = await fileToDataURL(file);
-          addOrUpdateAmbience(sector, audioUrl, file.name);
+          const result = await uploadAudioFile(file);
+          addOrUpdateAmbience(sector, result.url, file.name);
           renderAmbiences();
-          console.log('✅ 环境音已加载:', sector, file.name);
+          console.log('✅ 环境音已上传到服务端:', sector, file.name);
         } catch (err) {
-          alert('❌ 文件读取失败: ' + err.message);
+          alert('❌ 音频上传失败: ' + err.message);
         }
       }
     } else if (e.target.classList.contains('ambience-text')) {
@@ -571,16 +580,19 @@ function editVoicePointPosition(index) {
   };
 }
 
-/** ✅ 完成点编辑并返回编辑器 */
+/** 完成点编辑并返回编辑器 */
 function finishPointEditing() {
-  console.log('✅ 完成位置编辑');
+  console.log('完成位置编辑');
 
   // 清理编辑模式
   exitEditMode();
 
-  // 保存位置变更到 localStorage
+  // 保存位置变更到 localStorage + 后端
   if (currentEditingSpace) {
     updateSpace(currentEditingSpace);
+    syncSpaceToBackend(currentEditingSpace).catch(err =>
+      console.warn('3D编辑位置同步后端失败:', err.message)
+    );
   }
 
   // 清理UI提示
@@ -615,10 +627,21 @@ async function saveEditorChanges() {
     // 标记为已保存，确保能被持久化
     currentEditingSpace.isSaved = true;
 
+    // 1. 先保存到 localStorage
     updateSpace(currentEditingSpace);
-    
-    console.log('✅ 空间已保存:', currentEditingSpace);
-    alert('✅ 空间数据已保存！');
+
+    // 2. 同步到后端服务端存储
+    try {
+      const synced = await syncSpaceToBackend(currentEditingSpace);
+      if (synced) {
+        console.log('空间已同步到服务端:', currentEditingSpace.id);
+      }
+    } catch (syncErr) {
+      console.warn('同步到服务端失败（本地已保存）:', syncErr.message);
+    }
+
+    console.log('空间已保存:', currentEditingSpace);
+    alert('空间数据已保存！');
     closeSpaceEditor();
   } catch (err) {
     console.error('Save error:', err);

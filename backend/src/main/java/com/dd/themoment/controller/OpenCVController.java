@@ -1,120 +1,117 @@
 package com.dd.themoment.controller;
 
-import com.dd.themoment.config.OpenCVProperties;
-import okhttp3.MultipartBody;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.dd.themoment.service.OpenCVService;
+import com.dd.themoment.service.OpenCVService.StitchException;
+import com.dd.themoment.service.OpenCVService.StitchResult;
+
+/**
+ * 全景拼接 API —— 基于 JavaCV，无需外部 Python 服务
+ */
 @RestController
 @RequestMapping("/api/opencv")
 public class OpenCVController {
 
-    // 用完全限定名避免 okhttp3.MediaType 和 Spring MediaType 冲突
-    private static final okhttp3.MediaType IMAGE_MEDIA_TYPE = okhttp3.MediaType.parse("image/jpeg");
-    private static final org.springframework.http.MediaType SPRING_JSON = org.springframework.http.MediaType.APPLICATION_JSON;
+    private static final int MIN_IMAGES = 10;
 
-    private final OpenCVProperties properties;
-    private final OkHttpClient httpClient;
-    private final File tempDir;
+    private final OpenCVService openCVService;
+    private final Path tempDir;
 
-    public OpenCVController(OpenCVProperties properties) throws IOException {
-        this.properties = properties;
-        this.httpClient = new OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .writeTimeout(900, TimeUnit.SECONDS)
-                .readTimeout(900, TimeUnit.SECONDS)
-                .build();
+    public OpenCVController(OpenCVService openCVService) throws IOException {
+        this.openCVService = openCVService;
 
-        // 临时文件目录
         String userDir = System.getProperty("user.dir");
-        Path tempPath = Path.of(userDir, "backend", "uploads", "opencv-temp");
-        tempPath.toFile().mkdirs();
-        this.tempDir = tempPath.toFile();
+        Path candidate1 = Paths.get(userDir, "backend", "uploads");
+        Path candidate2 = Paths.get(userDir, "uploads");
+        Path uploadsDir;
+        if (Files.exists(candidate1) && Files.isDirectory(candidate1)) {
+            uploadsDir = candidate1;
+        } else if (Files.exists(candidate2) && Files.isDirectory(candidate2)) {
+            uploadsDir = candidate2;
+        } else {
+            uploadsDir = candidate1;
+        }
+        Files.createDirectories(uploadsDir);
+        this.tempDir = uploadsDir.resolve("opencv-temp");
+        Files.createDirectories(tempDir);
     }
 
-    @PostMapping(value = "/upload", produces = "application/json")
-    public ResponseEntity<String> upload(@RequestParam("images") MultipartFile[] files) {
-        if (files.length < 12) {
+    /** 健康检查 */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> health() {
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("engine", "JavaCV (内置 OpenCV)");
+        status.put("minImages", MIN_IMAGES);
+        status.put("ready", true);
+        status.put("tempDir", tempDir.toAbsolutePath().toString());
+        return ResponseEntity.ok(status);
+    }
+
+    @PostMapping("/upload")
+    public ResponseEntity<Map<String, Object>> upload(
+            @RequestParam("images") MultipartFile[] files) {
+
+        if (files.length < MIN_IMAGES) {
             return ResponseEntity.badRequest()
-                    .contentType(SPRING_JSON)
-                    .body("{\"error\":\"至少需要 12 张图片进行全景拼接，当前收到 " + files.length + " 张\"}");
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("error", "至少需要 " + MIN_IMAGES + " 张图片，当前收到 " + files.length + " 张"));
         }
 
-        // 1. 保存上传的文件到临时目录
-        File[] tempFiles = new File[files.length];
+        // 1. 保存上传文件到临时目录
+        List<File> tempFiles = new ArrayList<>();
         try {
-            for (int i = 0; i < files.length; i++) {
-                String uuid = UUID.randomUUID().toString();
-                String ext = getExtension(files[i].getOriginalFilename());
-                File dest = new File(tempDir, uuid + "." + ext);
-                files[i].transferTo(dest);
-                tempFiles[i] = dest;
+            for (MultipartFile file : files) {
+                String ext = getExtension(file.getOriginalFilename());
+                File dest = tempDir.resolve(UUID.randomUUID() + "." + ext).toFile();
+                file.transferTo(dest);
+                tempFiles.add(dest);
             }
         } catch (IOException e) {
             cleanup(tempFiles);
             return ResponseEntity.internalServerError()
-                    .contentType(SPRING_JSON)
-                    .body("{\"error\":\"保存上传文件失败: " + e.getMessage() + "\"}");
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("error", "保存上传文件失败: " + e.getMessage()));
         }
 
-        // 2. 构建 MultipartBody 请求 Python 服务
-        String serviceUrl = properties.getServiceUrl();
-        if (serviceUrl == null || serviceUrl.isBlank()) {
+        // 2. 调用 JavaCV 拼接
+        try {
+            StitchResult result = openCVService.stitch(tempFiles);
+            cleanup(tempFiles);
+
+            return ResponseEntity.ok(Map.of(
+                    "status", "ok",
+                    "url", result.getUrl(),
+                    "width", result.getWidth(),
+                    "height", result.getHeight()
+            ));
+
+        } catch (StitchException e) {
             cleanup(tempFiles);
             return ResponseEntity.internalServerError()
-                    .contentType(SPRING_JSON)
-                    .body("{\"error\":\"OpenCV 服务未配置\"}");
-        }
-
-        MultipartBody.Builder multipartBuilder = new MultipartBody.Builder()
-                .setType(MultipartBody.FORM);
-
-        for (File file : tempFiles) {
-            RequestBody fileBody = RequestBody.create(file, IMAGE_MEDIA_TYPE);
-            multipartBuilder.addFormDataPart("images", file.getName(), fileBody);
-        }
-
-        MultipartBody requestBody = multipartBuilder.build();
-        Request request = new Request.Builder()
-                .url(serviceUrl + "/stitch")
-                .post(requestBody)
-                .build();
-
-        try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                cleanup(tempFiles);
-                String errBody = response.body() != null ? response.body().string() : "未知错误";
-                return ResponseEntity.status(response.code())
-                        .contentType(SPRING_JSON)
-                        .body("{\"error\":\"OpenCV 服务返回错误: " + errBody + "\"}");
-            }
-
-            String responseBody = response.body() != null ? response.body().string() : "{}";
-
-            // 3. 清理临时文件
-            cleanup(tempFiles);
-
-            // 4. 返回 Python 服务的响应
-            return ResponseEntity.ok()
-                    .contentType(SPRING_JSON)
-                    .body(responseBody);
-
-        } catch (IOException e) {
-            cleanup(tempFiles);
-            return ResponseEntity.status(503)
-                    .contentType(SPRING_JSON)
-                    .body("{\"error\":\"OpenCV 服务不可达: " + e.getMessage() + "\"}");
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of(
+                            "error", e.getMessage(),
+                            "hint", "请确保：1) 图片有 30%-50% 重叠  2) 拍摄角度变化不要过大  3) 图片数量 ≥ " + MIN_IMAGES
+                    ));
         }
     }
 
@@ -123,8 +120,7 @@ public class OpenCVController {
         return filename.substring(filename.lastIndexOf(".") + 1);
     }
 
-    private void cleanup(File[] files) {
-        if (files == null) return;
+    private void cleanup(List<File> files) {
         for (File f : files) {
             if (f != null && f.exists()) {
                 f.delete();

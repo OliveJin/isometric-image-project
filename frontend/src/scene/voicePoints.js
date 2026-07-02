@@ -4,8 +4,6 @@
  */
 
 import * as THREE from 'three';
-import audioManager from '../audio/AudioManager.js';
-import { show as showBubble } from '../ui/DialogueBubble.js';
 
 let voicePointObjects = [];  // 存放所有 Sprite + 光环
 
@@ -90,20 +88,18 @@ export function createVoicePoints(scene, voicePoints, isEditMode = false) {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(ringRadius[0], ringRadius[1], 32),
       new THREE.MeshBasicMaterial({
-        color: isEditMode ? 0xff69b4 : 0xf4f2ff,
+        color: isEditMode ? 0xff69b4 : 0xffffff,
         transparent: true,
-        opacity: isEditMode ? 0.4 : 0.12,
+        opacity: isEditMode ? 0.4 : 0.18,
         side: THREE.DoubleSide,
       })
     );
     ring.position.copy(sprite.position);
     ring.userData.parentSprite = sprite;
 
-    // ✅ 新增：脉冲动画（如果是编辑模式）
-    if (isEditMode) {
-      ring.userData.pulsePhase = Math.random() * Math.PI * 2;
-      ring.userData.isPulsing = true;
-    }
+    // ✅ 新增：脉冲动画（正常模式和编辑模式都有泛光呼吸效果）
+    ring.userData.pulsePhase = Math.random() * Math.PI * 2;
+    ring.userData.isPulsing = true;
 
     scene.add(sprite, ring);
     voicePointObjects.push(sprite, ring);
@@ -124,4 +120,15 @@ export function clearVoicePoints() {
 /** 获取所有语音点 Sprite */
 export function getVoicePointSprites() {
   return voicePointObjects.filter(o => o.isSprite);
+}
+
+/** 每帧调用：更新所有语音点光环的泛光呼吸动画 */
+export function updateVoicePointAnimations(time) {
+  voicePointObjects.forEach(obj => {
+    if (obj.userData?.isPulsing && obj.material) {
+      const phase = obj.userData.pulsePhase || 0;
+      const pulse = 0.15 + 0.10 * Math.sin(time * 2 + phase);
+      obj.material.opacity = pulse;
+    }
+  });
 }

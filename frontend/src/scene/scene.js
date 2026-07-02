@@ -3,6 +3,17 @@ import { createCamera } from './camera.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 let scene;
+const frameCallbacks = [];
+
+/** 注册每帧回调 */
+export function registerFrameCallback(cb) {
+  frameCallbacks.push(cb);
+}
+
+/** 清除所有每帧回调 */
+export function clearFrameCallbacks() {
+  frameCallbacks.length = 0;
+}
 
 export function initScene() {
   const canvas = document.getElementById('app');
@@ -34,6 +45,11 @@ export function initScene() {
   function animate() {
     requestAnimationFrame(animate);
     controls.update();
+
+    // 运行注册的每帧回调
+    const time = performance.now() / 1000;
+    frameCallbacks.forEach(cb => cb(time));
+
     renderer.render(scene, camera);
   }
 

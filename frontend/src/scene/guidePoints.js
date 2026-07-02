@@ -4,8 +4,6 @@
  */
 
 import * as THREE from 'three';
-import audioManager from '../audio/AudioManager.js';
-import { show as showBubble } from '../ui/DialogueBubble.js';
 
 let guidePointObjects = [];  // 存放所有球体 + 光环
 
@@ -17,9 +15,9 @@ export function createGuidePoints(scene, guidePoints, isEditMode = false) {
     // ✅ 改进：更亮更突出的颜色，更强的泛光
     const geometry = new THREE.SphereGeometry(isEditMode ? 0.25 : 0.15, 16, 16);
     const material = new THREE.MeshStandardMaterial({
-      color: isEditMode ? 0xff6b9d : 0xd4c5ff,  // 编辑模式时使用粉红色，正常模式使用淡紫色
-      emissive: isEditMode ? 0xff1493 : 0xa88fff,  // 更亮的发光色
-      emissiveIntensity: isEditMode ? 1.2 : 0.8,   // 编辑模式发光更强
+      color: isEditMode ? 0xff6b9d : 0xffffff,  // 编辑模式粉红色，正常模式白色
+      emissive: isEditMode ? 0xff1493 : 0xffffff,  // 编辑模式粉色发光，正常模式白色泛光
+      emissiveIntensity: isEditMode ? 1.2 : 0.9,   // 正常模式泛光强度
       roughness: 0.2,
       metalness: 0.3,
       transparent: true,
@@ -48,9 +46,9 @@ export function createGuidePoints(scene, guidePoints, isEditMode = false) {
     const ring = new THREE.Mesh(
       ringGeometry,
       new THREE.MeshBasicMaterial({
-        color: isEditMode ? 0xff69b4 : 0xc5b9ff,
+        color: isEditMode ? 0xff69b4 : 0xffffff,
         transparent: true,
-        opacity: isEditMode ? 0.4 : 0.2,  // 编辑模式光环更明显
+        opacity: isEditMode ? 0.4 : 0.25,  // 正常模式泛光环
         side: THREE.DoubleSide,
       })
     );
@@ -58,11 +56,9 @@ export function createGuidePoints(scene, guidePoints, isEditMode = false) {
     ring.rotation.x = -Math.PI / 2;
     ring.userData.parentMesh = mesh;
 
-    // ✅ 新增：脉冲动画（如果是编辑模式）
-    if (isEditMode) {
-      ring.userData.pulsePhase = Math.random() * Math.PI * 2;
-      ring.userData.isPulsing = true;
-    }
+    // ✅ 新增：脉冲动画（正常模式和编辑模式都有泛光呼吸效果）
+    ring.userData.pulsePhase = Math.random() * Math.PI * 2;
+    ring.userData.isPulsing = true;
 
     scene.add(mesh, ring);
     guidePointObjects.push(mesh, ring);
@@ -83,4 +79,15 @@ export function clearGuidePoints() {
 /** 获取所有引导点 Mesh */
 export function getGuidePointMeshes() {
   return guidePointObjects.filter(o => o.isMesh);
+}
+
+/** 每帧调用：更新所有引导点光环的泛光呼吸动画 */
+export function updateGuidePointAnimations(time) {
+  guidePointObjects.forEach(obj => {
+    if (obj.userData?.isPulsing && obj.material) {
+      const phase = obj.userData.pulsePhase || 0;
+      const pulse = 0.25 + 0.12 * Math.sin(time * 2 + phase);
+      obj.material.opacity = pulse;
+    }
+  });
 }

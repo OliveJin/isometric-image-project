@@ -11,5 +11,5 @@ ark:
   api-key: ark-b533a48c-cb95-4410-8c56-b5795edcd706-a3750
   seedream-model: doubao-seedream-5-0-260128
 
-opencv:
-  service-url: http://localhost:5000
+# JavaCV 全景拼接（内置 OpenCV，无需外部 Python 服务）
+# opencv.service-url 已废弃，拼接由 JavaCV 直接在 JVM 内完成

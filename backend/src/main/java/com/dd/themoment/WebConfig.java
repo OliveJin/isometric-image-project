@@ -1,9 +1,12 @@
 package com.dd.themoment;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.*;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
@@ -26,7 +29,11 @@ public class WebConfig implements WebMvcConfigurer {
         }
         if (uploadsPath == null) {
             uploadsPath = Path.of(userDir, "backend", "uploads");
-            java.nio.file.Files.createDirectories(uploadsPath);
+            try {
+                java.nio.file.Files.createDirectories(uploadsPath);
+            } catch (IOException e) {
+                throw new RuntimeException("无法创建uploads目录: " + uploadsPath, e);
+            }
         }
 
         // Use toUri().toASCIIString() to get a proper file:/// URL (handles Windows backslashes)
