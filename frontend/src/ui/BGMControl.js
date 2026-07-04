@@ -52,14 +52,22 @@ export function initBGMControl() {
   controlEl.id = 'bgmControlBtn';
   controlEl.className = 'bgm-control-btn';
   controlEl.title = '背景音乐';
-  controlEl.innerText = '🔊';
+  controlEl.innerHTML = '♪';
 
   controlEl.addEventListener('click', () => {
     const playing = audioManager.toggleBGM();
-    controlEl.innerText = playing ? '🔊' : '🔇';
+    controlEl.innerHTML = playing ? '♫' : '♪';
+    controlEl.title = playing ? '暂停背景音乐' : '播放背景音乐';
   });
 
   document.getElementById('ui').appendChild(controlEl);
+}
+
+/** 更新 BGM 按钮状态（BGM 开始播放后调用） */
+export function updateBGMState(playing) {
+  if (!controlEl) return;
+  controlEl.innerHTML = playing ? '♫' : '♪';
+  controlEl.title = playing ? '暂停背景音乐' : '播放背景音乐';
 }
 
 export function hideBGMControl() {

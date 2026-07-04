@@ -128,3 +128,8 @@ export function createSphere(scene, texturePath, space) {
     createGuidePoints(scene, space.audio.guidePoints);
   }
 }
+
+/** 获取当前球体 Mesh（用于射线检测） */
+export function getCurrentSphereMesh() {
+  return currentMesh;
+}

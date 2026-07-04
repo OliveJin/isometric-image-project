@@ -12,12 +12,11 @@ import {
 import { renderSelector } from './ui/selector.js';
 import audioManager from './audio/AudioManager.js';
 import ambienceManager from './audio/AmbienceManager.js';
-import { initBGMControl, hideBGMControl } from './ui/BGMControl.js';
-import { getVoicePointSprites } from './scene/voicePoints.js';
-import { getGuidePointMeshes, updateGuidePointAnimations } from './scene/guidePoints.js';
-import { updateVoicePointAnimations } from './scene/voicePoints.js';
+import { initBGMControl, hideBGMControl, updateBGMState } from './ui/BGMControl.js';
+import { getVoicePointSprites, updateVoicePointAnimations, triggerVoicePointFeedback } from './scene/voicePoints.js';
+import { getGuidePointMeshes, updateGuidePointAnimations, triggerGuidePointFeedback } from './scene/guidePoints.js';
 import { registerFrameCallback, clearFrameCallbacks } from './scene/scene.js';
-import { initSpaceEditor, openSpaceEditor, register3DContext } from './ui/SpaceEditor.js';
+import { initInSpaceEditor, showInSpaceEditor, hideInSpaceEditor, handlePlacementClick, onInSpacePointsChanged } from './ui/InSpaceEditor.js';
 import './ui/editor.css';
 
 let scene;
@@ -49,9 +48,9 @@ async function init() {
   controls.enabled = false;
 
   spacesData = await loadSpaces();
-  initSpaceEditor();
-  register3DContext(scene, camera, renderer);  // 注册3D上下文以支持交互点位置编辑
-  renderSelector(spacesData, prepareFocusOnSphere, openRenameOverlay, deleteSpace, openSpaceEditor);
+  initInSpaceEditor(scene, camera, renderer);   // 初始化球内编辑器
+  onInSpacePointsChanged(() => setupVoiceGuidePointerEvents()); // 点变化后重新绑定事件
+  renderSelector(spacesData, prepareFocusOnSphere, openRenameOverlay, deleteSpace);
   setupBackButton();
   setupPointerEvents();
   setupIntro();
@@ -752,25 +751,44 @@ async function confirmEnterSpace() {
   hideSelector();
   clearEntrySpheres(scene);
   createSphere(scene, space.panorama, space);  // 传递完整 space 对象
+
+  // ✅ 将相机移到球体中心（否则用户在球外看不到内翻的球面）
+  camera.position.set(0, 1.2, 0);
+  controls.target.set(0, 1.2, -1);
+  controls.update();
   setSpaceControls();
   controls.enabled = true;
 
   // 初始化音频系统（在用户手势后允许 AudioContext）
   audioManager.init();
   initBGMControl();
+
+  // 设置环境音配置
   ambienceManager.setAmbiences(space.audio?.ambiences || []);
+  ambienceManager.setMainAmbience(space.audio?.mainAmbience || null);
+  ambienceManager.initDirectionalAmbiences();
+  ambienceManager.startMainAmbience();
+
+  // BGM
   if (space.audio?.bgm) {
-    try { audioManager.playBGM(space.audio.bgm); } catch (e) { console.warn('BGM play failed:', e); }
+    try { audioManager.playBGM(space.audio.bgm); updateBGMState(true); } catch (e) { console.warn('BGM play failed:', e); }
   }
 
   // 设置语音点/引导点点击事件
   setupVoiceGuidePointerEvents();
 
-  // 注册泛光呼吸动画
+  // 注册泛光呼吸动画 + 方向环境音渐变（传入 deltaTime）
+  let lastTime = performance.now() / 1000;
   registerFrameCallback((time) => {
+    const deltaTime = time - lastTime;
+    lastTime = time;
     updateGuidePointAnimations(time);
     updateVoicePointAnimations(time);
+    ambienceManager.update(camera, deltaTime);
   });
+
+  // 显示球内编辑器
+  showInSpaceEditor(space);
 }
 
 async function cancelConfirm() {
@@ -793,22 +811,45 @@ async function enterSpace(id) {
   clearEntrySpheres(scene);
   createSphere(scene, space.panorama, space);
   hideSelector();
+
+  // ✅ 将相机移到球体中心
+  camera.position.set(0, 1.2, 0);
+  controls.target.set(0, 1.2, -1);
+  controls.update();
   setSpaceControls();
   controls.enabled = true;
 
   // 初始化音频系统
   audioManager.init();
   initBGMControl();
+
+  // 设置环境音配置
   ambienceManager.setAmbiences(space.audio?.ambiences || []);
+  ambienceManager.setMainAmbience(space.audio?.mainAmbience || null);
+  ambienceManager.initDirectionalAmbiences();
+  ambienceManager.startMainAmbience();
+
+  // BGM
   if (space.audio?.bgm) {
-    try { audioManager.playBGM(space.audio.bgm); } catch (e) { console.warn('BGM play failed:', e); }
+    try { audioManager.playBGM(space.audio.bgm); updateBGMState(true); } catch (e) { console.warn('BGM play failed:', e); }
   }
+
+  // 注册泛光呼吸动画 + 方向环境音渐变（传入 deltaTime）
+  let lastTime = performance.now() / 1000;
+  registerFrameCallback((time) => {
+    const deltaTime = time - lastTime;
+    lastTime = time;
+    updateGuidePointAnimations(time);
+    updateVoicePointAnimations(time);
+    ambienceManager.update(camera, deltaTime);
+  });
 
   // 设置语音点/引导点点击事件
   setupVoiceGuidePointerEvents();
-}
 
-/** 创建靠近3D点的文本提示气泡 */
+  // 显示球内编辑器
+  showInSpaceEditor(space);
+}
 let tooltipEl = null;
 let tooltipTimeout = null;
 
@@ -848,6 +889,11 @@ function showTooltip(text, screenX, screenY) {
   });
 
   tooltipEl = tooltip;
+
+  // 5 秒后自动消失
+  tooltipTimeout = setTimeout(() => {
+    hideTooltip();
+  }, 5000);
 }
 
 function hideTooltip() {
@@ -876,6 +922,11 @@ function setupVoiceGuidePointerEvents() {
   ];
 
   pointerDownListener = (event) => {
+    // 优先处理放置模式（球内编辑器）
+    if (handlePlacementClick(event, camera, renderer, scene)) {
+      return;
+    }
+
     const rect = renderer.domElement.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -893,12 +944,10 @@ function setupVoiceGuidePointerEvents() {
 
       if (!pointData) return;
 
-      // 获取 3D 点在屏幕上的位置（使用关联对象的实际位置）
-      const targetPos = root.position || hit.parent?.position;
-      if (!targetPos) return;
-      const screenPos = new THREE.Vector3();
-      screenPos.copy(targetPos);
-      screenPos.project(camera);
+      // 获取 3D 点的世界坐标用于屏幕投影
+      const targetPos = new THREE.Vector3();
+      root.getWorldPosition(targetPos);
+      const screenPos = targetPos.clone().project(camera);
 
       const sx = (screenPos.x * 0.5 + 0.5) * rect.width;
       const sy = (-screenPos.y * 0.5 + 0.5) * rect.height;
@@ -906,13 +955,24 @@ function setupVoiceGuidePointerEvents() {
       // 显示文本提示
       showTooltip(pointData.text || '', sx, sy);
 
-      // 语音点：播放关联的环境音
+      // 引导点：显示引导问题 + 播放触发音频 + 视觉反馈
+      if (gp && gp.file) {
+        audioManager.playTriggerSound(gp.file, 0.8).catch(e => {
+          console.warn('引导点触发音播放失败:', e);
+        });
+      }
+      if (gp) {
+        triggerGuidePointFeedback(gp.id);
+      }
+
+      // 语音点：播放触发音频 + 视觉反馈
       if (vp && vp.file) {
-        try {
-          audioManager.playAmbience(vp.ambienceId, vp.file, 'center');
-        } catch (e) {
-          console.warn('Ambience play failed:', e);
-        }
+        audioManager.playTriggerSound(vp.file, 0.8).catch(e => {
+          console.warn('语音点触发音播放失败:', e);
+        });
+      }
+      if (vp) {
+        triggerVoicePointFeedback(vp.id);
       }
     }
   };
@@ -921,10 +981,12 @@ function setupVoiceGuidePointerEvents() {
 }
 
 export async function exitSpace() {
-  // 停止背景音乐
+  // 停止背景音乐 + 环境音 + 隐藏球内编辑器
   audioManager.stopBGM();
+  ambienceManager.reset();
   audioManager.destroy();
   hideBGMControl();
+  hideInSpaceEditor();
 
   // 清除帧回调和提示气泡
   clearFrameCallbacks();

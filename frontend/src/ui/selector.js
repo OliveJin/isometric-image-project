@@ -1,4 +1,4 @@
-export function renderSelector(spaces, onSelect, onRename, onDelete, onEdit) {
+export function renderSelector(spaces, onSelect, onRename, onDelete) {
   const container = document.getElementById('selector');
   if (!container) return;
 
@@ -16,18 +16,6 @@ export function renderSelector(spaces, onSelect, onRename, onDelete, onEdit) {
 
     const meta = document.createElement('div');
     meta.className = 'selector-meta';
-
-    // 编辑按钮
-    const editButton = document.createElement('button');
-    editButton.type = 'button';
-    editButton.className = 'selector-icon selector-edit';
-    editButton.title = '编辑';
-    editButton.innerText = '⚙️';
-    editButton.onclick = event => {
-      event.stopPropagation();
-      onEdit?.(space.id);
-    };
-    meta.appendChild(editButton);
 
     const renameButton = document.createElement('button');
     renameButton.type = 'button';

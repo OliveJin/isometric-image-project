@@ -36,8 +36,9 @@ public class WebConfig implements WebMvcConfigurer {
             }
         }
 
-        // Use toUri().toASCIIString() to get a proper file:/// URL (handles Windows backslashes)
-        String resourceLocation = "file:" + uploadsPath.toUri().toASCIIString();
+        // Use toUri().toASCIIString() to get a proper file:/// URL
+        // Note: toUri() already includes the "file:" scheme, so don't add another
+        String resourceLocation = uploadsPath.toUri().toASCIIString();
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations(resourceLocation);
         System.out.println("[WebConfig] Serving /uploads/** from: " + resourceLocation);

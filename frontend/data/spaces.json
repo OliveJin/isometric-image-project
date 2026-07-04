@@ -2,19 +2,53 @@
   {
     "id": "room1",
     "panorama": "/assets/panoramas/room1.jpg",
-    "audio": "",
-    "hotspots": []
+    "label": "room1",
+    "audio": {
+      "bgm": "",
+      "mainAmbience": "",
+      "ambiences": [],
+      "guidePoints": [
+        {
+          "id": "gp-demo-001",
+          "position": [0, 1.5, -6],
+          "text": "欢迎！点击星尘触发互动。试试上传一段音频来播放吧。",
+          "ambienceId": "",
+          "file": ""
+        }
+      ],
+      "voicePoints": [
+        {
+          "id": "vp-demo-001",
+          "position": [4, 1.2, -4],
+          "text": "语音触发点",
+          "ambienceId": "",
+          "file": ""
+        }
+      ]
+    }
   },
   {
     "id": "room2",
     "panorama": "/assets/panoramas/room2.jpg",
-    "audio": "",
-    "hotspots": []
+    "label": "room2",
+    "audio": {
+      "bgm": "",
+      "mainAmbience": "",
+      "ambiences": [],
+      "guidePoints": [],
+      "voicePoints": []
+    }
   },
   {
     "id": "opencv",
     "panorama": "/assets/panoramas/opencv.jpg",
-    "audio": "",
-    "hotspots": []
+    "label": "opencv",
+    "audio": {
+      "bgm": "",
+      "mainAmbience": "",
+      "ambiences": [],
+      "guidePoints": [],
+      "voicePoints": []
+    }
   }
 ]

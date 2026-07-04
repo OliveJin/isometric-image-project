@@ -76,19 +76,30 @@ function createEditorContainer() {
         </div>
 
         <div class="editor-section">
-          <h3>🌍 环境音效 (按方向)</h3>
-          <div id="ambiencesContainer"></div>
-          <button id="addAmbienceBtn" class="editor-btn btn-primary">+ 添加环境音</button>
+          <h3>�️ 主环境音（始终播放的背景层）</h3>
+          <div class="editor-row">
+            <label>当前：<span id="currentMainAmbience">未设置</span></label>
+            <input type="file" id="mainAmbienceUpload" accept="audio/*" />
+            <button id="mainAmbienceUploadBtn" class="editor-btn">上传主环境音</button>
+            <button id="mainAmbienceClearBtn" class="editor-btn btn-danger">清除</button>
+          </div>
+          <p style="font-size:0.7rem;color:#888;margin-top:4px;">主环境音不受视角方向影响，始终均衡播放</p>
         </div>
 
         <div class="editor-section">
-          <h3>💬 引导点</h3>
+          <h3>🧭 方向环境音（随视角渐变）</h3>
+          <div id="ambiencesContainer"></div>
+          <p style="font-size:0.7rem;color:#888;margin-top:4px;">四个方向的环境音会根据视角旋转平滑渐变过渡</p>
+        </div>
+
+        <div class="editor-section">
+          <h3>💬 引导点（触发对话+音乐）</h3>
           <div id="guidePointsContainer"></div>
           <button id="addGuidePointBtn" class="editor-btn btn-primary">+ 添加引导点</button>
         </div>
 
         <div class="editor-section">
-          <h3>🔊 语音点</h3>
+          <h3>🔊 语音点（触发环境音）</h3>
           <div id="voicePointsContainer"></div>
           <button id="addVoicePointBtn" class="editor-btn btn-primary">+ 添加语音点</button>
         </div>
@@ -135,7 +146,11 @@ function renderEditorContent() {
   const bgmSpan = document.getElementById('currentBGM');
   bgmSpan.textContent = space.audio?.bgm ? space.audio.bgm.split('/').pop() : '未设置';
 
-  // 环境音
+  // 主环境音
+  const mainAmbSpan = document.getElementById('currentMainAmbience');
+  mainAmbSpan.textContent = space.audio?.mainAmbience ? space.audio.mainAmbience.split('/').pop() : '未设置';
+
+  // 方向环境音
   renderAmbiences();
 
   // 引导点
@@ -193,8 +208,11 @@ function renderGuidePoints() {
       </div>
       <div class="point-controls">
         <label>位置: <code>[${gp.position ? gp.position.map(v => v.toFixed(2)).join(', ') : '0.00, 0.00, 0.00'}]</code></label>
-        <textarea class="point-text" data-gp-index="${index}" placeholder="引导点文本内容">${gp.text || ''}</textarea>
-        <select class="point-ambience" data-gp-index="${index}">
+        <textarea class="point-text" data-gp-index="${index}" placeholder="引导点文本内容">${gp.text || ''}</textarea>        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+          <input type="file" accept="audio/*" id="gpAudioInput${index}" style="display:none;" />
+          <button class="editor-btn" onclick="document.getElementById('gpAudioInput${index}').click()" style="font-size:0.75rem;">🎵 ${gp.file ? '已设置音频' : '上传交互音频'}</button>
+          <span style="font-size:0.7rem;color:#888;">${gp.file ? gp.file.split('/').pop() : ''}</span>
+        </div>        <select class="point-ambience" data-gp-index="${index}">
           <option value="">-- 不关联环境音 --</option>
           ${(currentEditingSpace.audio?.ambiences || []).map(a => `
             <option value="${a.id}" ${gp.ambienceId === a.id ? 'selected' : ''}>
@@ -280,6 +298,34 @@ function setupEditorEvents() {
     document.getElementById('currentBGM').textContent = '未设置';
   });
 
+  // ---- 主环境音上传 ----
+  document.getElementById('mainAmbienceUploadBtn').addEventListener('click', () => {
+    document.getElementById('mainAmbienceUpload').click();
+  });
+
+  document.getElementById('mainAmbienceUpload').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const result = await uploadAudioFile(file);
+        currentEditingSpace.audio = currentEditingSpace.audio || {};
+        currentEditingSpace.audio.mainAmbience = result.url;
+        document.getElementById('currentMainAmbience').textContent = file.name;
+        console.log('✅ 主环境音已上传到服务端:', result.url);
+      } catch (err) {
+        alert('❌ 主环境音上传失败: ' + err.message);
+      }
+    }
+  });
+
+  // 主环境音清除
+  document.getElementById('mainAmbienceClearBtn').addEventListener('click', () => {
+    if (currentEditingSpace.audio) {
+      currentEditingSpace.audio.mainAmbience = '';
+    }
+    document.getElementById('currentMainAmbience').textContent = '未设置';
+  });
+
   // 环境音委托事件
   document.getElementById('ambiencesContainer').addEventListener('click', (e) => {
     if (e.target.classList.contains('ambience-upload-btn')) {
@@ -339,6 +385,20 @@ function setupEditorEvents() {
         currentEditingSpace.audio.guidePoints[index].text = e.target.value;
       } else if (e.target.classList.contains('point-ambience')) {
         currentEditingSpace.audio.guidePoints[index].ambienceId = e.target.value;
+      }
+    }
+    // 引导点音频上传
+    if (e.target.id && e.target.id.startsWith('gpAudioInput')) {
+      const idx = parseInt(e.target.id.replace('gpAudioInput', ''));
+      const file = e.target.files?.[0];
+      if (file && !isNaN(idx)) {
+        uploadAudioFile(file).then(result => {
+          currentEditingSpace.audio.guidePoints[idx].file = result.url;
+          renderGuidePoints();
+          console.log('引导点音频已上传:', result.url);
+        }).catch(err => {
+          alert('音频上传失败: ' + err.message);
+        });
       }
     }
   });
@@ -419,8 +479,8 @@ function addGuidePoint() {
 
   currentEditingSpace.audio.guidePoints.push({
     id: `gp-${Date.now()}`,
-    position: [0, 1.2, -2],
-    text: '新的引导点',
+    position: [0, 1.5, -6],
+    text: '你想在这里发现什么？',
     ambienceId: '',
   });
 }
@@ -439,7 +499,7 @@ function addVoicePoint() {
 
   currentEditingSpace.audio.voicePoints.push({
     id: `vp-${Date.now()}`,
-    position: [0, 1.5, -3],
+    position: [3, 1.5, -5],
     text: '新的语音点',
     ambienceId: '',
   });
@@ -618,6 +678,7 @@ async function saveEditorChanges() {
     if (!currentEditingSpace.audio) {
       currentEditingSpace.audio = {
         bgm: '',
+        mainAmbience: '',
         ambiences: [],
         guidePoints: [],
         voicePoints: [],
