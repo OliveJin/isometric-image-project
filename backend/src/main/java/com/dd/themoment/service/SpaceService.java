@@ -154,6 +154,7 @@ public class SpaceService {
             SpaceItem.AudioInfo dst = existing.getAudio();
 
             if (src.getBgm() != null) dst.setBgm(src.getBgm());
+            if (src.getMainAmbience() != null) dst.setMainAmbience(src.getMainAmbience());
             if (src.getAmbiences() != null) dst.setAmbiences(src.getAmbiences());
             if (src.getGuidePoints() != null) dst.setGuidePoints(src.getGuidePoints());
             if (src.getVoicePoints() != null) dst.setVoicePoints(src.getVoicePoints());

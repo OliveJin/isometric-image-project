@@ -31,6 +31,7 @@ public class SpaceItem {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class AudioInfo {
         private String bgm;
+        private String mainAmbience;
 
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         private List<AmbienceItem> ambiences = new ArrayList<>();
@@ -59,5 +60,6 @@ public class SpaceItem {
         private double[] position;
         private String text;
         private String ambienceId;
+        private String file;
     }
 }
